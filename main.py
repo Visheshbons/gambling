@@ -3,8 +3,8 @@ import math
 import random
 
 START_VALUE = 1500
-WIN_VALUE = 1000000000000
-MAX_LOAN = 1000000  # hard cap
+WIN_VALUE = 1000000
+MAX_LOAN = 999999  # hard cap
 LOAN_PERCENT_CAP = 1.5  # 150% of current worth
 
 multiplierD100active = False
@@ -154,6 +154,8 @@ def main():
             while True:
                 bet = int(input("Enter your bet amount: "))
                 if 1 <= bet <= p.worth:
+                    break
+                if bet == 0:
                     break
                 print("Invalid bet! Must be within your current worth.")
 
