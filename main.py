@@ -3,7 +3,9 @@ import math
 import random
 
 START_VALUE = 1500
-WIN_VALUE = 1000000
+WIN_VALUE = 1000000000000
+MAX_LOAN = 1000000  # hard cap
+LOAN_PERCENT_CAP = 1.5  # 150% of current worth
 
 multiplierD100active = False
 dice = False
@@ -30,141 +32,206 @@ class Player:
         self.updateNetWorth()
 
     def payLoan(self, index, amount):
+        amount = min(amount, self.loans[index], self.worth)
         self.worth -= amount
         self.loans[index] -= amount
+
         if self.loans[index] == 0:
             del self.loans[index]
+
+        self.updateNetWorth()
+
+    def loanInterest(self):
+        for i in range(len(self.loans)):
+            self.loans[i] = math.ceil(self.loans[i] * 1.05)
         self.updateNetWorth()
 
 
 def init():
+    global dice
     print("Welcome to the GAMBLING software!")
 
-    # Get the number of players and save as a constant
     playerCount = int(input("Enter the number of players: "))
-
     for i in range(playerCount):
         players.append(Player(i))
 
-    if input("Are you playing a physical game? (y/n)") == "y":
-        dice = True
-    else:
-        dice = False
+    dice = input("Are you playing a physical game? (y/n)") == "y"
 
     if dice:
-        # Wait until all players have their tokens.
-        print("Give players their tokens. Each player should have:")
-        print("3x $1 tokens")
-        print("1x $2 tokens")
-        print("1x $5 tokens")
-        print("2x $10 tokens")
-        print("1x $20 tokens")
-        print("1x $50 tokens")
-        print("2x $100 tokens")
-        print("1x $200 tokens")
-        print("2x $500 tokens")
-        input("Press ENTER once all players have their tokens.")
+        print("Give players their tokens...")
+        input("Press ENTER once ready.\n")
 
     main()
 
 
 def gameOver():
-    for i in players:
-        if players[i].netWorth >= WIN_VALUE:
-            print(f"Player {i + 1} just won! (${players[i].netWorth})")
+    for p in players:
+        if p.netWorth >= WIN_VALUE:
+            print(f"Player {p.id + 1} just won! (${p.netWorth})")
             return True
-    # If none return true
     return False
+
+
+def handleLoans(p):
+
+    # === CALCULATE MAX LOAN ===
+    percent_limit = int(p.worth * LOAN_PERCENT_CAP)
+    max_allowed = max(1, min(MAX_LOAN, percent_limit))
+
+    # === FORCE LOAN IF BROKE ===
+    if p.worth <= 0:
+        percent_limit = int(-p.worth * LOAN_PERCENT_CAP)
+        max_allowed = max(1, min(MAX_LOAN, percent_limit))
+        print("You have $0! You must take a loan.")
+        print(f"Max loan allowed: ${max_allowed}")
+
+        while True:
+            amount = int(input("Enter loan amount: "))
+            if 1 <= amount <= max_allowed:
+                p.addLoan(amount)
+                break
+            print("Invalid loan amount.")
+
+    # === OPTIONAL LOANS ===
+    while True:
+        percent_limit = int(p.worth * LOAN_PERCENT_CAP)
+        max_allowed = max(1, min(MAX_LOAN, percent_limit))
+
+        choice = input("Take a loan? (y/n): ")
+        if choice != "y":
+            break
+
+        print(f"Max loan allowed: ${max_allowed}")
+
+        amount = int(input("Enter loan amount: "))
+        if 1 <= amount <= max_allowed:
+            p.addLoan(amount)
+        else:
+            print("Invalid loan amount.")
+
+    # === REPAYMENT ===
+    while len(p.loans) > 0 and p.worth > 0:
+        choice = input("Do you want to repay a loan? (y/n): ")
+        if choice != "y":
+            break
+
+        for idx, loan in enumerate(p.loans):
+            print(f"{idx + 1}: ${loan}")
+
+        try:
+            loanIndex = int(input("Select loan number: ")) - 1
+            amount = int(input("Enter repayment amount: "))
+            p.payLoan(loanIndex, amount)
+        except:
+            print("Invalid input.")
 
 
 # Main loop
 def main():
+    global multiplierD100active
+
     while not gameOver():
-        # Give all player stats
-        for i in players:
-            print(f"Player {i + 1} has ${players[i].worth}.")
-            if players[i].loans.length > 0:
-                print(f"Here are the loans for player {i + 1}:")
-                for j in players[i].loans:
-                    print(f"Loan {j + 1}: ${players[i].loans[j]}.")
-                print(f"Loans total to ${sum(players[i].loans)}.")
-            print(f"Net value: {players[i].netWorth}\n")
+        # Show stats
+        for p in players:
+            print(f"\nPlayer {p.id + 1} has ${p.worth}")
+            if p.loans:
+                # Take interest HERE
+                p.loanInterest()
+                print(f"Loans: {p.loans} (Total: ${sum(p.loans)})")
+            print(f"Net: ${p.netWorth}")
 
-        for i in players:
+        # Player turns
+        for p in players:
+            print(f"\n--- Player {p.id + 1}'s Turn ---")
+
+            handleLoans(p)
+
             winnings = 0
-            bet = int(input("Enter your bet amount: "))
-            dice1guess = int(input("Enter your number for the d20: "))
+            canMultiply = True
+            lost = False
 
-            # D20 roll
-            if dice:
-                rolld20 = int(input("Enter d20 amount: "))
+            # === VALIDATED BET ===
+            while True:
+                bet = int(input("Enter your bet amount: "))
+                if 1 <= bet <= p.worth:
+                    break
+                print("Invalid bet! Must be within your current worth.")
+
+            dice1guess = int(input("Enter your number for the d20 (2–19): "))
+
+            # Roll D20
+            rolld20 = (
+                int(input("Enter d20 amount: ")) if dice else random.randint(1, 20)
+            )
+            print(f"d20 roll: {rolld20}")
+
+            p.add(-bet)
+
+            # === FIRST ROLL ===
+            if rolld20 == 1:
+                print("Rolled 1! Lose bet + half money.")
+                p.worth //= 2
+                p.updateNetWorth()
+                continue
+
+            elif rolld20 == 20:
+                print("Rolled 20! Jackpot!")
+                winnings = 1000
+                p.add(winnings)
+                multiplierD100active = True
+                continue
+
+            elif rolld20 < dice1guess:
+                print("You lost your bet.")
+                continue
+
             else:
-                rolld20 = int(math.ceil(random.random() * 20))
-                print(f"d20 roll: {rolld20}")
+                winnings = bet * dice1guess
+                print(f"You won ${winnings}")
 
-            if dice1guess < rolld20:
-                print(f"You lost your bet of ${bet}.")
-                return
-            # else:
-            winnings = bet * dice1guess
-            print(f"Your winnings is now {winnings}!")
-
-            # Multipliers
-            while input("Would you like to use a multiplier? (y/n): ") == "y":
+            # === MULTIPLIERS ===
+            while canMultiply and input("Use multiplier? (y/n): ") == "y":
                 if multiplierD100active:
-                    multiplierChoice = input("Select between d10 and d100 (d10/d100): ")
+                    choice = input("d10 or d100: ")
                 else:
-                    multiplierChoice = "d10"
+                    choice = "d10"
 
-                if multiplierChoice == "d10":
-                    if dice:
-                        rolld10 = int(input("Enter the roll value: "))
+                if choice == "d10":
+                    roll = int(input("Enter d10: ")) if dice else random.randint(1, 10)
+                    print(f"d10: {roll}")
+
+                    if roll % 2 != 0:
+                        print("Odd! You lose everything.")
+                        p.add(-winnings)
+                        lost = True
+                        break
                     else:
-                        rolld10 = int(math.ceil(random.random() * 10))
-                        print(f"d10 roll: {rolld10}")
-
-                    # If rolld10 is ODD
-                    if rolld10 % 2 != 0:
-                        print("You lost your money!")
-                        winnings = -winnings
-                        print(f"You now owe the bank {-winnings}")
-                        players[i].add(winnings)
-                        print(f"{-winnings} has been removed from your account.")
-                        print(f"Your balance is now {players[i].worth}.")
-                        if players[i].worth < 0:
-                            print(
-                                "You are in debt! You now have to take out a loan.\nWe will do this for you."
-                            )
-                            players[i].addLoan((-winnings))
-                    else:  # If rolld10 is EVEN
                         winnings *= 10
-                        print(f"Your winnings are now {winnings}!")
-                else:  # d100
-                    if dice:
-                        rolld100 = int(input("Enter the roll value: "))
-                    else:
-                        rolld100 = int(math.ceil(random.random() * 10) * 10)
-                        print(f"d10 roll: {rolld100}")
+                        print(f"Now ${winnings}")
 
-                    # If rolld100 is 10, 30, 50, 70, or 90
-                    if (rolld100 / 100) % 2 != 0:
-                        print("Oh no...")
-                        winnings = -(winnings * rolld100)
-                        print(f"You just lost {-winnings}...")
-                        players[i].add(winnings)
-                        print(f"Your balance is now {players[i].worth}.")
-                        if players[i].worth < 0:
-                            print(
-                                "You are in debt! You now have to take out a loan.\nWe will do this for you."
-                            )
-                            players[i].addLoan((-winnings))
-                    else:  # If rolld100 is 20, 40, 60, 80, or 100:
-                        winnings *= rolld100
-                        print(f"Your winnings are now {winnings}!")
-            # Player selected "n" for multiplier
-            print(f"Your winnings are now {winnings}!")
-            players[i].add(winnings)
-            print(f"Your worth is now {players[i].worth}!")
+                else:
+                    roll = (
+                        int(input("Enter d100: "))
+                        if dice
+                        else random.choice([10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
+                    )
+                    print(f"d100: {roll}")
+
+                    if roll in [10, 30, 50, 70, 90]:
+                        loss = winnings * roll
+                        print(f"You owe ${loss}")
+                        p.add(-loss)
+                        lost = True
+                        break
+                    else:
+                        winnings *= roll
+                        print(f"Now ${winnings}")
+
+            # === FINAL PAYOUT ===
+            if not lost:
+                p.add(winnings)
+
+            print(f"End worth: ${p.worth}")
 
 
 init()
