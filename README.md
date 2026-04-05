@@ -4,7 +4,7 @@ This is a basic python program for a gambling game created entirely made by Vish
 ## Game Rules
 
 ### Game Start
-First, each player recieves:
+First, each player receives:
 - 3x $1 tokens
 - 1x $2 tokens
 - 1x $5 tokens
@@ -40,7 +40,7 @@ Now, you can start wasting money.
 #### Bet
 Your first bad decision is the bet amount.
 This is any positive integer amount between $1 and $999,999.
-Get the required tokens for your bet and place it on the board.
+Get the required tokens for your bet and place them on the board.
 
 Now, the player must choose a number between 2 and 19.
 This will act as the **multiplier** of their bet.
@@ -73,7 +73,7 @@ Once selected, the player can roll a regular **D10** dice.
   - _If the player is now in debt, they **MUST** take out a loan._
 
 ##### Ultra Multiplier
-**This multiplier is only avalable once any player on the board gets a $1k token.**
+**This multiplier is only available once any player on the board gets a $1k token.**
 Once selected, the player can roll a **100x D10** dice.
 - If the roll is 20, 40, 60, 80, or 100:
   - The player's winnings are multiplied by their roll.
@@ -87,7 +87,7 @@ Once selected, the player can roll a **100x D10** dice.
 
 #### Loans
 The player, if they want (or if they have no other choice), may take out a loan at any point of their turn.
-The miminum loan amount is $1, and the maximum is $1T. _($1,000,000,000,000)_
+The minimum loan amount is $1, and the maximum is $1T. _($1,000,000,000,000)_
 The loan is taken from the bank with 5% compound interest per turn.
 
 ### How To Win
